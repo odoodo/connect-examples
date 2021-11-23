@@ -1,0 +1,1358 @@
+<codeTemplate version="3.7.1">
+  <id>1beac0f4-3424-4c3e-aaed-162e2c8be0ff</id>
+  <name>getSourceCode()</name>
+  <revision>1</revision>
+  <lastModified>
+    <time>1637247150816</time>
+    <timezone>Europe/Berlin</timezone>
+  </lastModified>
+  <contextSet>
+    <delegate>
+      <contextType>DESTINATION_RESPONSE_TRANSFORMER</contextType>
+      <contextType>SOURCE_RECEIVER</contextType>
+      <contextType>DESTINATION_FILTER_TRANSFORMER</contextType>
+      <contextType>SOURCE_FILTER_TRANSFORMER</contextType>
+      <contextType>DESTINATION_DISPATCHER</contextType>
+    </delegate>
+  </contextSet>
+  <properties class="com.mirth.connect.model.codetemplates.BasicCodeTemplateProperties">
+    <type>FUNCTION</type>
+    <code>/**
+	Provides the javascript code of the script from which it is called.
+
+	@param {Boolean} showEverything - If this flag is set to true, it will not just show the code of the transformers but also the imported code (like code templates, maps, etc.) &lt;br/&gt;
+	&lt;i&gt;DEFAULT: false&lt;/i&gt;&lt;br/&gt;
+	@param {Boolean} hideThis - If this flag is set to true, this function and also it&apos;s call will be hidden from the source code.&lt;br/&gt;
+	&lt;i&gt;DEFAULT: true&lt;/i&gt;
+	@return {String} return The formated javascript sourcecode
+*/
+function getSourceCode(showEverything, hideThis) {
+	 if (showEverything === undefined) {
+	 	// default is show only the calling function
+	 	showEverything = false;
+	 }
+	 if (hideThis === undefined) {
+	 	// default is hide the logSourceCode function
+	 	hideThis = false;
+	 }
+
+	 try{
+	 	// unfortunately the extended scope currently only works for connectors - I have to figure out why
+		var sourceCode = showEverything ? this.toSource() : this.doScript.toSource();		
+	}catch(e){
+	 	// in case of issues default to the limited scope (extended scope does not yet work for transformers)
+		var sourceCode = this.doScript.toSource();		
+	}
+
+	// if this function should be hidden from the source code
+	if(hideThis){
+		// hide the function call
+		sourceCode = sourceCode.replace(/logSourceCode\([^\)]*\);/, &apos;&apos;);
+		// might be a minimal performance gain if the subsequent function is only called if needed
+		if(showEverything){
+			// remove the function itself from the source code
+			sourceCode = sourceCode.replace(/logSourceCode\:function logSourceCode\(showEverything\) \{((?!\}, \w).)+}, /, &apos;&apos;);
+		}
+	}
+	if(!showEverything){
+		sourceCode = js_beautify(sourceCode);
+	} else{
+		// now make it pretty &amp; human readible
+		sourceCode = sourceCode.replace(/([\$\w]+:function)/g, &apos;\n$1&apos;);
+		sourceCode = sourceCode.replace(/^([\$\w]+:function [\$\w]+\([^\)]*\).+)$/mg, function(match, contents, offset, input_string) {return js_beautify(contents);});
+		sourceCode = sourceCode.replace(/([^ \n\t\(\)\{\}\[\]]+=[^ ]*, )/g, &apos;\n\t$1&apos;);
+		sourceCode = sourceCode.replace(/([^ \n\t\(\)\{\}\[\]]+:[^ ]*, )/g, &apos;\n$1&apos;);
+		sourceCode = sourceCode.replace(/\n\t\n/g, &apos;\n\t&apos;);
+	}
+	// the subsequent function is used for code beautification and has been taken from https://github.com/ioikka/JsBeautifier
+	function js_beautify(js_source_text, options) {
+	    var input, output, token_text, last_type, last_text, last_last_text, last_word, flags, flag_store, indent_string;
+	    var whitespace, wordchar, punct, parser_pos, line_starters, digits;
+	    var prefix, token_type, do_block_just_closed;
+	    var wanted_newline, just_added_newline, n_newlines;
+	    var preindent_string = &apos;&apos;;
+	
+	
+	    // Some interpreters have unexpected results with foo = baz || bar;
+	    options = options ? options : {};
+	
+	    var opt_brace_style;
+	
+	    // compatibility
+	    if (options.space_after_anon_function !== undefined &amp;&amp; options.jslint_happy === undefined) {
+	        options.jslint_happy = options.space_after_anon_function;
+	    }
+	    if (options.braces_on_own_line !== undefined) { //graceful handling of deprecated option
+	        opt_brace_style = options.braces_on_own_line ? &quot;expand&quot; : &quot;collapse&quot;;
+	    }
+	    opt_brace_style = options.brace_style ? options.brace_style : (opt_brace_style ? opt_brace_style : &quot;collapse&quot;);
+	
+	
+	    var opt_indent_size = options.indent_size ? options.indent_size : 4,
+	        opt_indent_char = options.indent_char ? options.indent_char : &apos; &apos;,
+	        opt_preserve_newlines = typeof options.preserve_newlines === &apos;undefined&apos; ? true : options.preserve_newlines,
+	        opt_break_chained_methods = typeof options.break_chained_methods === &apos;undefined&apos; ? false : options.break_chained_methods,
+	        opt_max_preserve_newlines = typeof options.max_preserve_newlines === &apos;undefined&apos; ? false : options.max_preserve_newlines,
+	        opt_jslint_happy = options.jslint_happy === &apos;undefined&apos; ? false : options.jslint_happy,
+	        opt_keep_array_indentation = typeof options.keep_array_indentation === &apos;undefined&apos; ? false : options.keep_array_indentation,
+	        opt_space_before_conditional = typeof options.space_before_conditional === &apos;undefined&apos; ? true : options.space_before_conditional,
+	        opt_unescape_strings = typeof options.unescape_strings === &apos;undefined&apos; ? false : options.unescape_strings;
+	
+	    just_added_newline = false;
+	
+	    // cache the source&apos;s length.
+	    var input_length = js_source_text.length;
+	
+	    function trim_output(eat_newlines) {
+	        eat_newlines = typeof eat_newlines === &apos;undefined&apos; ? false : eat_newlines;
+	        while (output.length &amp;&amp; (output[output.length - 1] === &apos; &apos;
+	            || output[output.length - 1] === indent_string
+	            || output[output.length - 1] === preindent_string
+	            || (eat_newlines &amp;&amp; (output[output.length - 1] === &apos;\n&apos; || output[output.length - 1] === &apos;\r&apos;)))) {
+	            output.pop();
+	        }
+	    }
+	
+	    function trim(s) {
+	        return s.replace(/^\s\s*|\s\s*$/, &apos;&apos;);
+	    }
+	
+	    // we could use just string.split, but
+	    // IE doesn&apos;t like returning empty strings
+	    function split_newlines(s) {
+	        //return s.split(/\x0d\x0a|\x0a/);
+	
+	        s = s.replace(/\x0d/g, &apos;&apos;);
+	        var out = [],
+	            idx = s.indexOf(&quot;\n&quot;);
+	        while (idx !== -1) {
+	            out.push(s.substring(0, idx));
+	            s = s.substring(idx + 1);
+	            idx = s.indexOf(&quot;\n&quot;);
+	        }
+	        if (s.length) {
+	            out.push(s);
+	        }
+	        return out;
+	    }
+	
+	    function force_newline() {
+	        var old_keep_array_indentation = opt_keep_array_indentation;
+	        opt_keep_array_indentation = false;
+	        print_newline();
+	        opt_keep_array_indentation = old_keep_array_indentation;
+	    }
+	
+	    function print_newline(ignore_repeated, reset_statement_flags) {
+	
+	        flags.eat_next_space = false;
+	        if (opt_keep_array_indentation &amp;&amp; is_array(flags.mode)) {
+	            return;
+	        }
+	
+	        ignore_repeated = typeof ignore_repeated === &apos;undefined&apos; ? true : ignore_repeated;
+	        reset_statement_flags = typeof reset_statement_flags === &apos;undefined&apos; ? true : reset_statement_flags;
+	
+	        if (reset_statement_flags) {
+	            flags.if_line = false;
+	            flags.chain_extra_indentation = 0;
+	        }
+	
+	        trim_output();
+	
+	        if (!output.length) {
+	            return; // no newline on start of file
+	        }
+	
+	        if (output[output.length - 1] !== &quot;\n&quot; || !ignore_repeated) {
+	            just_added_newline = true;
+	            output.push(&quot;\n&quot;);
+	        }
+	        if (preindent_string) {
+	            output.push(preindent_string);
+	        }
+	        for (var i = 0; i &lt; flags.indentation_level + flags.chain_extra_indentation; i += 1) {
+	            output.push(indent_string);
+	        }
+	        if (flags.var_line &amp;&amp; flags.var_line_reindented) {
+	            output.push(indent_string); // skip space-stuffing, if indenting with a tab
+	        }
+	    }
+	
+	
+	
+	    function print_single_space() {
+	
+	        var last_output = &apos; &apos;;
+	
+	        if (flags.eat_next_space) {
+	            flags.eat_next_space = false;
+	        } else if (last_type === &apos;TK_COMMENT&apos;) {
+	            print_newline();
+	        } else {
+	            if (output.length) {
+	                last_output = output[output.length - 1];
+	            }
+	            if (last_output !== &apos; &apos; &amp;&amp; last_output !== &apos;\n&apos; &amp;&amp; last_output !== indent_string) { // prevent occassional duplicate space
+	                output.push(&apos; &apos;);
+	            }
+	        }
+	    }
+	
+	
+	    function print_token() {
+	        just_added_newline = false;
+	        flags.eat_next_space = false;
+	        output.push(token_text);
+	    }
+	
+	    function indent() {
+	        flags.indentation_level += 1;
+	    }
+	
+	
+	    function remove_indent() {
+	        if (output.length &amp;&amp; output[output.length - 1] === indent_string) {
+	            output.pop();
+	        }
+	    }
+	
+	    function set_mode(mode) {
+	        if (flags) {
+	            flag_store.push(flags);
+	        }
+	        flags = {
+	            previous_mode: flags ? flags.mode : &apos;BLOCK&apos;,
+	            mode: mode,
+	            var_line: false,
+	            var_line_tainted: false,
+	            var_line_reindented: false,
+	            in_html_comment: false,
+	            if_line: false,
+	            chain_extra_indentation: 0,
+	            in_case_statement: false, // switch(..){ INSIDE HERE }
+	            in_case: false, // we&apos;re on the exact line with &quot;case 0:&quot;
+	            case_body: false, // the indented case-action block
+	            eat_next_space: false,
+	            indentation_level: (flags ? flags.indentation_level + ((flags.var_line &amp;&amp; flags.var_line_reindented) ? 1 : 0) : 0),
+	            ternary_depth: 0
+	        };
+	    }
+	
+	    function is_array(mode) {
+	        return mode === &apos;[EXPRESSION]&apos; || mode === &apos;[INDENTED-EXPRESSION]&apos;;
+	    }
+	
+	    function is_expression(mode) {
+	        return in_array(mode, [&apos;[EXPRESSION]&apos;, &apos;(EXPRESSION)&apos;, &apos;(FOR-EXPRESSION)&apos;, &apos;(COND-EXPRESSION)&apos;]);
+	    }
+	
+	    function restore_mode() {
+	        do_block_just_closed = flags.mode === &apos;DO_BLOCK&apos;;
+	        if (flag_store.length &gt; 0) {
+	            var mode = flags.mode;
+	            flags = flag_store.pop();
+	            flags.previous_mode = mode;
+	        }
+	    }
+	
+	    function all_lines_start_with(lines, c) {
+	        for (var i = 0; i &lt; lines.length; i++) {
+	            var line = trim(lines[i]);
+	            if (line.charAt(0) !== c) {
+	                return false;
+	            }
+	        }
+	        return true;
+	    }
+	
+	    function is_special_word(word) {
+	        return in_array(word, [&apos;case&apos;, &apos;return&apos;, &apos;do&apos;, &apos;if&apos;, &apos;throw&apos;, &apos;else&apos;]);
+	    }
+	
+	    function in_array(what, arr) {
+	        for (var i = 0; i &lt; arr.length; i += 1) {
+	            if (arr[i] === what) {
+	                return true;
+	            }
+	        }
+	        return false;
+	    }
+	
+	    function unescape_string(s) {
+	        var esc = false,
+	            out = &apos;&apos;,
+	            pos = 0,
+	            s_hex = &apos;&apos;,
+	            escaped = 0,
+	            c;
+	
+	        while (esc || pos &lt; s.length) {
+	
+	            c = s.charAt(pos);
+	            pos++;
+	
+	            if (esc) {
+	                esc = false;
+	                if (c === &apos;x&apos;) {
+	                    // simple hex-escape \x24
+	                    s_hex = s.substr(pos, 2);
+	                    pos += 2;
+	                } else if (c === &apos;u&apos;) {
+	                    // unicode-escape, \u2134
+	                    s_hex = s.substr(pos, 4);
+	                    pos += 4;
+	                } else {
+	                    // some common escape, e.g \n
+	                    out += &apos;\\&apos; + c;
+	                    continue;
+	                }
+	                if ( ! s_hex.match(/^[0123456789abcdefABCDEF]+$/)) {
+	                    // some weird escaping, bail out,
+	                    // leaving whole string intact
+	                    return s;
+	                }
+	
+	                escaped = parseInt(s_hex, 16);
+	
+	                if (escaped &gt;= 0x00 &amp;&amp; escaped &lt; 0x20) {
+	                    // leave 0x00...0x1f escaped
+	                    if (c === &apos;x&apos;) {
+	                        out += &apos;\\x&apos; + s_hex;
+	                    } else {
+	                        out += &apos;\\u&apos; + s_hex;
+	                    }
+	                    continue;
+	                } else if (escaped == 0x22 || escaped === 0x27 || escaped == 0x5c) {
+	                    // single-quote, apostrophe, backslash - escape these
+	                    out += &apos;\\&apos; + String.fromCharCode(escaped);
+	                } else if (c === &apos;x&apos; &amp;&amp; escaped &gt; 0x7e &amp;&amp; escaped &lt;= 0xff) {
+	                    // we bail out on \x7f..\xff,
+	                    // leaving whole string escaped,
+	                    // as it&apos;s probably completely binary
+	                    return s;
+	                } else {
+	                    out += String.fromCharCode(escaped);
+	                }
+	            } else if (c == &apos;\\&apos;) {
+	                esc = true;
+	            } else {
+	                out += c;
+	            }
+	        }
+	        return out;
+	    }
+	
+	    function look_up(exclude) {
+	        var local_pos = parser_pos;
+	        var c = input.charAt(local_pos);
+	        while (in_array(c, whitespace) &amp;&amp; c !== exclude) {
+	            local_pos++;
+	            if (local_pos &gt;= input_length) {
+	                return 0;
+	            }
+	            c = input.charAt(local_pos);
+	        }
+	        return c;
+	    }
+	
+	    function get_next_token() {
+	        var i;
+	        var resulting_string;
+	
+	        n_newlines = 0;
+	
+	        if (parser_pos &gt;= input_length) {
+	            return [&apos;&apos;, &apos;TK_EOF&apos;];
+	        }
+	
+	        wanted_newline = false;
+	
+	        var c = input.charAt(parser_pos);
+	        parser_pos += 1;
+	
+	
+	        var keep_whitespace = opt_keep_array_indentation &amp;&amp; is_array(flags.mode);
+	
+	        if (keep_whitespace) {
+	
+	            var whitespace_count = 0;
+	
+	            while (in_array(c, whitespace)) {
+	
+	                if (c === &quot;\n&quot;) {
+	                    trim_output();
+	                    output.push(&quot;\n&quot;);
+	                    just_added_newline = true;
+	                    whitespace_count = 0;
+	                } else {
+	                    if (c === &apos;\t&apos;) {
+	                        whitespace_count += 4;
+	                    } else if (c === &apos;\r&apos;) {
+	                        // nothing
+	                    } else {
+	                        whitespace_count += 1;
+	                    }
+	                }
+	
+	                if (parser_pos &gt;= input_length) {
+	                    return [&apos;&apos;, &apos;TK_EOF&apos;];
+	                }
+	
+	                c = input.charAt(parser_pos);
+	                parser_pos += 1;
+	
+	            }
+	
+	            if (just_added_newline) {
+	                for (i = 0; i &lt; whitespace_count; i++) {
+	                    output.push(&apos; &apos;);
+	                }
+	            }
+	
+	        } else {
+	            while (in_array(c, whitespace)) {
+	
+	                if (c === &quot;\n&quot;) {
+	                    n_newlines += ((opt_max_preserve_newlines) ? (n_newlines &lt;= opt_max_preserve_newlines) ? 1 : 0 : 1);
+	                }
+	
+	
+	                if (parser_pos &gt;= input_length) {
+	                    return [&apos;&apos;, &apos;TK_EOF&apos;];
+	                }
+	
+	                c = input.charAt(parser_pos);
+	                parser_pos += 1;
+	
+	            }
+	
+	            if (opt_preserve_newlines) {
+	                if (n_newlines &gt; 1) {
+	                    for (i = 0; i &lt; n_newlines; i += 1) {
+	                        print_newline(i === 0);
+	                        just_added_newline = true;
+	                    }
+	                }
+	            }
+	            wanted_newline = n_newlines &gt; 0;
+	        }
+	
+	
+	        if (in_array(c, wordchar)) {
+	            if (parser_pos &lt; input_length) {
+	                while (in_array(input.charAt(parser_pos), wordchar)) {
+	                    c += input.charAt(parser_pos);
+	                    parser_pos += 1;
+	                    if (parser_pos === input_length) {
+	                        break;
+	                    }
+	                }
+	            }
+	
+	            // small and surprisingly unugly hack for 1E-10 representation
+	            if (parser_pos !== input_length &amp;&amp; c.match(/^[0-9]+[Ee]$/) &amp;&amp; (input.charAt(parser_pos) === &apos;-&apos; || input.charAt(parser_pos) === &apos;+&apos;)) {
+	
+	                var sign = input.charAt(parser_pos);
+	                parser_pos += 1;
+	
+	                var t = get_next_token();
+	                c += sign + t[0];
+	                return [c, &apos;TK_WORD&apos;];
+	            }
+	
+	            if (c === &apos;in&apos;) { // hack for &apos;in&apos; operator
+	                return [c, &apos;TK_OPERATOR&apos;];
+	            }
+	            if (wanted_newline &amp;&amp; last_type !== &apos;TK_OPERATOR&apos;
+	                &amp;&amp; last_type !== &apos;TK_EQUALS&apos;
+	                &amp;&amp; !flags.if_line &amp;&amp; (opt_preserve_newlines || last_text !== &apos;var&apos;)) {
+	                print_newline();
+	            }
+	            return [c, &apos;TK_WORD&apos;];
+	        }
+	
+	        if (c === &apos;(&apos; || c === &apos;[&apos;) {
+	            return [c, &apos;TK_START_EXPR&apos;];
+	        }
+	
+	        if (c === &apos;)&apos; || c === &apos;]&apos;) {
+	            return [c, &apos;TK_END_EXPR&apos;];
+	        }
+	
+	        if (c === &apos;{&apos;) {
+	            return [c, &apos;TK_START_BLOCK&apos;];
+	        }
+	
+	        if (c === &apos;}&apos;) {
+	            return [c, &apos;TK_END_BLOCK&apos;];
+	        }
+	
+	        if (c === &apos;;&apos;) {
+	            return [c, &apos;TK_SEMICOLON&apos;];
+	        }
+
+	        if (c === &apos;/&apos;) {
+	            var comment = &apos;&apos;;
+	            // peek for comment /* ... */
+	            var inline_comment = true;
+	            if (input.charAt(parser_pos) === &apos;*&apos;) {
+	                parser_pos += 1;
+	                if (parser_pos &lt; input_length) {
+	                    while (parser_pos &lt; input_length &amp;&amp;
+	                        ! (input.charAt(parser_pos) === &apos;*&apos; &amp;&amp; input.charAt(parser_pos + 1) &amp;&amp; input.charAt(parser_pos + 1) === &apos;/&apos;)) {
+	                        c = input.charAt(parser_pos);
+	                        comment += c;
+	                        if (c === &quot;\n&quot; || c === &quot;\r&quot;) {
+	                            inline_comment = false;
+	                        }
+	                        parser_pos += 1;
+	                        if (parser_pos &gt;= input_length) {
+	                            break;
+	                        }
+	                    }
+	                }
+	                parser_pos += 2;
+	                if (inline_comment &amp;&amp; n_newlines === 0) {
+	                    return [&apos;/*&apos; + comment + &apos;*/&apos;, &apos;TK_INLINE_COMMENT&apos;];
+	                } else {
+	                    return [&apos;/*&apos; + comment + &apos;*/&apos;, &apos;TK_BLOCK_COMMENT&apos;];
+	                }
+	            }
+	            // peek for comment // ...
+	            if (input.charAt(parser_pos) === &apos;/&apos;) {
+	                comment = c;
+	                while (input.charAt(parser_pos) !== &apos;\r&apos; &amp;&amp; input.charAt(parser_pos) !== &apos;\n&apos;) {
+	                    comment += input.charAt(parser_pos);
+	                    parser_pos += 1;
+	                    if (parser_pos &gt;= input_length) {
+	                        break;
+	                    }
+	                }
+	                if (wanted_newline) {
+	                    print_newline();
+	                }
+	                return [comment, &apos;TK_COMMENT&apos;];
+	            }
+	
+	        }
+	
+	        if (c === &quot;&apos;&quot; || // string
+	            c === &apos;&quot;&apos; || // string
+	            (c === &apos;/&apos; &amp;&amp;
+	                ((last_type === &apos;TK_WORD&apos; &amp;&amp; is_special_word(last_text)) ||
+	                    (last_text === &apos;)&apos; &amp;&amp; in_array(flags.previous_mode, [&apos;(COND-EXPRESSION)&apos;, &apos;(FOR-EXPRESSION)&apos;])) ||
+	                    (last_type === &apos;TK_COMMA&apos; || last_type === &apos;TK_COMMENT&apos; || last_type === &apos;TK_START_EXPR&apos; || last_type === &apos;TK_START_BLOCK&apos; || last_type === &apos;TK_END_BLOCK&apos; || last_type === &apos;TK_OPERATOR&apos; || last_type === &apos;TK_EQUALS&apos; || last_type === &apos;TK_EOF&apos; || last_type === &apos;TK_SEMICOLON&apos;)))) { // regexp
+	            var sep = c;
+	            var esc = false,
+	                has_char_escapes = false;
+	            resulting_string = c;
+	
+	            if (parser_pos &lt; input_length) {
+	                if (sep === &apos;/&apos;) {
+	                    //
+	                    // handle regexp separately...
+	                    //
+	                    var in_char_class = false;
+	                    while (esc || in_char_class || input.charAt(parser_pos) !== sep) {
+	                        resulting_string += input.charAt(parser_pos);
+	                        if (!esc) {
+	                            esc = input.charAt(parser_pos) === &apos;\\&apos;;
+	                            if (input.charAt(parser_pos) === &apos;[&apos;) {
+	                                in_char_class = true;
+	                            } else if (input.charAt(parser_pos) === &apos;]&apos;) {
+	                                in_char_class = false;
+	                            }
+	                        } else {
+	                            esc = false;
+	                        }
+	                        parser_pos += 1;
+	                        if (parser_pos &gt;= input_length) {
+	                            // incomplete string/rexp when end-of-file reached.
+	                            // bail out with what had been received so far.
+	                            return [resulting_string, &apos;TK_STRING&apos;];
+	                        }
+	                    }
+	
+	                } else {
+	                    //
+	                    // and handle string also separately
+	                    //
+	                    while (esc || input.charAt(parser_pos) !== sep) {
+	                        resulting_string += input.charAt(parser_pos);
+	                        if (esc) {
+	                            if (input.charAt(parser_pos) === &apos;x&apos; || input.charAt(parser_pos) === &apos;u&apos;) {
+	                                has_char_escapes = true;
+	                            }
+	                            esc = false;
+	                        } else {
+	                            esc = input.charAt(parser_pos) === &apos;\\&apos;;
+	                        }
+	                        parser_pos += 1;
+	                    }
+	
+	                }
+	            }
+	
+	            parser_pos += 1;
+	            resulting_string += sep;
+	
+	            if (has_char_escapes &amp;&amp; opt_unescape_strings) {
+	                resulting_string = unescape_string(resulting_string);
+	            }
+	
+	            if (sep === &apos;/&apos;) {
+	                // regexps may have modifiers /regexp/MOD , so fetch those, too
+	                while (parser_pos &lt; input_length &amp;&amp; in_array(input.charAt(parser_pos), wordchar)) {
+	                    resulting_string += input.charAt(parser_pos);
+	                    parser_pos += 1;
+	                }
+	            }
+	            return [resulting_string, &apos;TK_STRING&apos;];
+	        }
+	
+	        if (c === &apos;#&apos;) {
+	
+	
+	            if (output.length === 0 &amp;&amp; input.charAt(parser_pos) === &apos;!&apos;) {
+	                // shebang
+	                resulting_string = c;
+	                while (parser_pos &lt; input_length &amp;&amp; c !== &apos;\n&apos;) {
+	                    c = input.charAt(parser_pos);
+	                    resulting_string += c;
+	                    parser_pos += 1;
+	                }
+	                output.push(trim(resulting_string) + &apos;\n&apos;);
+	                print_newline();
+	                return get_next_token();
+	            }
+	
+	
+	
+	            // Spidermonkey-specific sharp variables for circular references
+	            // https://developer.mozilla.org/En/Sharp_variables_in_JavaScript
+	            // http://mxr.mozilla.org/mozilla-central/source/js/src/jsscan.cpp around line 1935
+	            var sharp = &apos;#&apos;;
+	            if (parser_pos &lt; input_length &amp;&amp; in_array(input.charAt(parser_pos), digits)) {
+	                do {
+	                    c = input.charAt(parser_pos);
+	                    sharp += c;
+	                    parser_pos += 1;
+	                } while (parser_pos &lt; input_length &amp;&amp; c !== &apos;#&apos; &amp;&amp; c !== &apos;=&apos;);
+	                if (c === &apos;#&apos;) {
+	                    //
+	                } else if (input.charAt(parser_pos) === &apos;[&apos; &amp;&amp; input.charAt(parser_pos + 1) === &apos;]&apos;) {
+	                    sharp += &apos;[]&apos;;
+	                    parser_pos += 2;
+	                } else if (input.charAt(parser_pos) === &apos;{&apos; &amp;&amp; input.charAt(parser_pos + 1) === &apos;}&apos;) {
+	                    sharp += &apos;{}&apos;;
+	                    parser_pos += 2;
+	                }
+	                return [sharp, &apos;TK_WORD&apos;];
+	            }
+	        }
+	
+	        if (c === &apos;&lt;&apos; &amp;&amp; input.substring(parser_pos - 1, parser_pos + 3) === &apos;&lt;!--&apos;) {
+	            parser_pos += 3;
+	            c = &apos;&lt;!--&apos;;
+	            while (input.charAt(parser_pos) !== &apos;\n&apos; &amp;&amp; parser_pos &lt; input_length) {
+	                c += input.charAt(parser_pos);
+	                parser_pos++;
+	            }
+	            flags.in_html_comment = true;
+	            return [c, &apos;TK_COMMENT&apos;];
+	        }
+	
+	        if (c === &apos;-&apos; &amp;&amp; flags.in_html_comment &amp;&amp; input.substring(parser_pos - 1, parser_pos + 2) === &apos;--&gt;&apos;) {
+	            flags.in_html_comment = false;
+	            parser_pos += 2;
+	            if (wanted_newline) {
+	                print_newline();
+	            }
+	            return [&apos;--&gt;&apos;, &apos;TK_COMMENT&apos;];
+	        }
+	
+	        if (c === &apos;.&apos;) {
+	            return [c, &apos;TK_DOT&apos;];
+	        }
+	
+	        if (in_array(c, punct)) {
+	            while (parser_pos &lt; input_length &amp;&amp; in_array(c + input.charAt(parser_pos), punct)) {
+	                c += input.charAt(parser_pos);
+	                parser_pos += 1;
+	                if (parser_pos &gt;= input_length) {
+	                    break;
+	                }
+	            }
+	
+	            if (c === &apos;,&apos;) {
+	                return [c, &apos;TK_COMMA&apos;];
+	            } else if (c === &apos;=&apos;) {
+	                return [c, &apos;TK_EQUALS&apos;];
+	            } else {
+	                return [c, &apos;TK_OPERATOR&apos;];
+	            }
+	        }
+	
+	        return [c, &apos;TK_UNKNOWN&apos;];
+	    }
+	
+	    //----------------------------------
+	    indent_string = &apos;&apos;;
+	    while (opt_indent_size &gt; 0) {
+	        indent_string += opt_indent_char;
+	        opt_indent_size -= 1;
+	    }
+	
+	    while (js_source_text &amp;&amp; (js_source_text.charAt(0) === &apos; &apos; || js_source_text.charAt(0) === &apos;\t&apos;)) {
+	        preindent_string += js_source_text.charAt(0);
+	        js_source_text = js_source_text.substring(1);
+	    }
+	    input = js_source_text;
+	
+	    last_word = &apos;&apos;; // last &apos;TK_WORD&apos; passed
+	    last_type = &apos;TK_START_EXPR&apos;; // last token type
+	    last_text = &apos;&apos;; // last token text
+	    last_last_text = &apos;&apos;; // pre-last token text
+	    output = [];
+	
+	    do_block_just_closed = false;
+	
+	    whitespace = &quot;\n\r\t &quot;.split(&apos;&apos;);
+	    wordchar = &apos;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$&apos;.split(&apos;&apos;);
+	    digits = &apos;0123456789&apos;.split(&apos;&apos;);
+	
+	    punct = &apos;+ - * / % &amp; ++ -- = += -= *= /= %= == === != !== &gt; &lt; &gt;= &lt;= &gt;&gt; &lt;&lt; &gt;&gt;&gt; &gt;&gt;&gt;= &gt;&gt;= &lt;&lt;= &amp;&amp; &amp;= | || ! !! , : ? ^ ^= |= ::&apos;;
+	    punct += &apos; &lt;%= &lt;% %&gt; &lt;?= &lt;? ?&gt;&apos;; // try to be a good boy and try not to break the markup language identifiers
+	    punct = punct.split(&apos; &apos;);
+	
+	    // words which should always start on new line.
+	    line_starters = &apos;continue,try,throw,return,var,if,switch,case,default,for,while,break,function&apos;.split(&apos;,&apos;);
+	
+	    // states showing if we are currently in expression (i.e. &quot;if&quot; case) - &apos;EXPRESSION&apos;, or in usual block (like, procedure), &apos;BLOCK&apos;.
+	    // some formatting depends on that.
+	    flag_store = [];
+	    set_mode(&apos;BLOCK&apos;);
+	
+	    parser_pos = 0;
+	    while (true) {
+	        var t = get_next_token();
+	        token_text = t[0];
+	        token_type = t[1];
+	        if (token_type === &apos;TK_EOF&apos;) {
+	            break;
+	        }
+	
+	        switch (token_type) {
+	
+	            case &apos;TK_START_EXPR&apos;:
+	
+	                if (token_text === &apos;[&apos;) {
+	
+	                    if (last_type === &apos;TK_WORD&apos; || last_text === &apos;)&apos;) {
+	                        // this is array index specifier, break immediately
+	                        // a[x], fn()[x]
+	                        if (in_array(last_text, line_starters)) {
+	                            print_single_space();
+	                        }
+	                        set_mode(&apos;(EXPRESSION)&apos;);
+	                        print_token();
+	                        break;
+	                    }
+	
+	                    if (flags.mode === &apos;[EXPRESSION]&apos; || flags.mode === &apos;[INDENTED-EXPRESSION]&apos;) {
+	                        if (last_last_text === &apos;]&apos; &amp;&amp; last_text === &apos;,&apos;) {
+	                            // ], [ goes to new line
+	                            if (flags.mode === &apos;[EXPRESSION]&apos;) {
+	                                flags.mode = &apos;[INDENTED-EXPRESSION]&apos;;
+	                                if (!opt_keep_array_indentation) {
+	                                    indent();
+	                                }
+	                            }
+	                            set_mode(&apos;[EXPRESSION]&apos;);
+	                            if (!opt_keep_array_indentation) {
+	                                print_newline();
+	                            }
+	                        } else if (last_text === &apos;[&apos;) {
+	                            if (flags.mode === &apos;[EXPRESSION]&apos;) {
+	                                flags.mode = &apos;[INDENTED-EXPRESSION]&apos;;
+	                                if (!opt_keep_array_indentation) {
+	                                    indent();
+	                                }
+	                            }
+	                            set_mode(&apos;[EXPRESSION]&apos;);
+	
+	                            if (!opt_keep_array_indentation) {
+	                                print_newline();
+	                            }
+	                        } else {
+	                            set_mode(&apos;[EXPRESSION]&apos;);
+	                        }
+	                    } else {
+	                        set_mode(&apos;[EXPRESSION]&apos;);
+	                    }
+	
+	
+	
+	                } else {
+	                    if (last_word === &apos;for&apos;) {
+	                        set_mode(&apos;(FOR-EXPRESSION)&apos;);
+	                    } else if (in_array(last_word, [&apos;if&apos;, &apos;while&apos;])) {
+	                        set_mode(&apos;(COND-EXPRESSION)&apos;);
+	                    } else {
+	                        set_mode(&apos;(EXPRESSION)&apos;);
+	                    }
+	                }
+	
+	                if (last_text === &apos;;&apos; || last_type === &apos;TK_START_BLOCK&apos;) {
+	                    print_newline();
+	                } else if (last_type === &apos;TK_END_EXPR&apos; || last_type === &apos;TK_START_EXPR&apos; || last_type === &apos;TK_END_BLOCK&apos; || last_text === &apos;.&apos;) {
+	                    if (wanted_newline) {
+	                        print_newline();
+	                    }
+	                    // do nothing on (( and )( and ][ and ]( and .(
+	                } else if (last_type !== &apos;TK_WORD&apos; &amp;&amp; last_type !== &apos;TK_OPERATOR&apos;) {
+	                    print_single_space();
+	                } else if (last_word === &apos;function&apos; || last_word === &apos;typeof&apos;) {
+	                    // function() vs function ()
+	                    if (opt_jslint_happy) {
+	                        print_single_space();
+	                    }
+	                } else if (in_array(last_text, line_starters) || last_text === &apos;catch&apos;) {
+	                    if (opt_space_before_conditional) {
+	                        print_single_space();
+	                    }
+	                }
+	                print_token();
+	
+	                break;
+	
+	            case &apos;TK_DOT&apos;:
+	
+	                if (is_special_word(last_text)) {
+	                    print_single_space();
+	                } else if (last_text === &apos;)&apos;) {
+	                    if (opt_break_chained_methods || wanted_newline) {
+	                        flags.chain_extra_indentation = 1;
+	                        print_newline(true /* ignore_repeated */, false /* reset_statement_flags */);
+	                    }
+	                }
+	
+	                print_token();
+	                break;
+	
+	            case &apos;TK_END_EXPR&apos;:
+	                if (token_text === &apos;]&apos;) {
+	                    if (opt_keep_array_indentation) {
+	                        if (last_text === &apos;}&apos;) {
+	                            // trim_output();
+	                            // print_newline(true);
+	                            remove_indent();
+	                            print_token();
+	                            restore_mode();
+	                            break;
+	                        }
+	                    } else {
+	                        if (flags.mode === &apos;[INDENTED-EXPRESSION]&apos;) {
+	                            if (last_text === &apos;]&apos;) {
+	                                restore_mode();
+	                                print_newline();
+	                                print_token();
+	                                break;
+	                            }
+	                        }
+	                    }
+	                }
+	                restore_mode();
+	                print_token();
+	                break;
+	
+	            case &apos;TK_START_BLOCK&apos;:
+	
+	                if (last_word === &apos;do&apos;) {
+	                    set_mode(&apos;DO_BLOCK&apos;);
+	                } else {
+	                    set_mode(&apos;BLOCK&apos;);
+	                }
+	                if (opt_brace_style === &quot;expand&quot; || opt_brace_style === &quot;expand-strict&quot;) {
+	                    var empty_braces = false;
+	                    if (opt_brace_style === &quot;expand-strict&quot;) {
+	                        empty_braces = (look_up() === &apos;}&apos;);
+	                        if (!empty_braces) {
+	                            print_newline(true);
+	                        }
+	                    } else {
+	                        if (last_type !== &apos;TK_OPERATOR&apos;) {
+	                            if (last_text === &apos;=&apos; || (is_special_word(last_text) &amp;&amp; last_text !== &apos;else&apos;)) {
+	                                print_single_space();
+	                            } else {
+	                                print_newline(true);
+	                            }
+	                        }
+	                    }
+	                    print_token();
+	                    if (!empty_braces) {
+	                        indent();
+	                    }
+	                } else {
+	                    if (last_type !== &apos;TK_OPERATOR&apos; &amp;&amp; last_type !== &apos;TK_START_EXPR&apos;) {
+	                        if (last_type === &apos;TK_START_BLOCK&apos;) {
+	                            print_newline();
+	                        } else {
+	                            print_single_space();
+	                        }
+	                    } else {
+	                        // if TK_OPERATOR or TK_START_EXPR
+	                        if (is_array(flags.previous_mode) &amp;&amp; last_text === &apos;,&apos;) {
+	                            if (last_last_text === &apos;}&apos;) {
+	                                // }, { in array context
+	                                print_single_space();
+	                            } else {
+	                                print_newline(); // [a, b, c, {
+	                            }
+	                        }
+	                    }
+	                    indent();
+	                    print_token();
+	                }
+	
+	                break;
+	
+	            case &apos;TK_END_BLOCK&apos;:
+	                restore_mode();
+	                if (opt_brace_style === &quot;expand&quot; || opt_brace_style === &quot;expand-strict&quot;) {
+	                    if (last_text !== &apos;{&apos;) {
+	                        print_newline();
+	                    }
+	                    print_token();
+	                } else {
+	                    if (last_type === &apos;TK_START_BLOCK&apos;) {
+	                        // nothing
+	                        if (just_added_newline) {
+	                            remove_indent();
+	                        } else {
+	                            // {}
+	                            trim_output();
+	                        }
+	                    } else {
+	                        if (is_array(flags.mode) &amp;&amp; opt_keep_array_indentation) {
+	                            // we REALLY need a newline here, but newliner would skip that
+	                            opt_keep_array_indentation = false;
+	                            print_newline();
+	                            opt_keep_array_indentation = true;
+	
+	                        } else {
+	                            print_newline();
+	                        }
+	                    }
+	                    print_token();
+	                }
+	                break;
+	
+	            case &apos;TK_WORD&apos;:
+	
+	                // no, it&apos;s not you. even I have problems understanding how this works
+	                // and what does what.
+	                if (do_block_just_closed) {
+	                    // do {} ## while ()
+	                    print_single_space();
+	                    print_token();
+	                    print_single_space();
+	                    do_block_just_closed = false;
+	                    break;
+	                }
+	
+	                prefix = &apos;NONE&apos;;
+	
+	                if (token_text === &apos;function&apos;) {
+	                    if (flags.var_line &amp;&amp; last_type !== &apos;TK_EQUALS&apos; ) {
+	                        flags.var_line_reindented = true;
+	                    }
+	                    if ((just_added_newline || last_text === &apos;;&apos;) &amp;&amp; last_text !== &apos;{&apos;
+	                        &amp;&amp; last_type !== &apos;TK_BLOCK_COMMENT&apos; &amp;&amp; last_type !== &apos;TK_COMMENT&apos;) {
+	                        // make sure there is a nice clean space of at least one blank line
+	                        // before a new function definition
+	                        n_newlines = just_added_newline ? n_newlines : 0;
+	                        if (!opt_preserve_newlines) {
+	                            n_newlines = 1;
+	                        }
+	
+	                        for (var i = 0; i &lt; 2 - n_newlines; i++) {
+	                            print_newline(false);
+	                        }
+	                    }
+	                    if (last_type === &apos;TK_WORD&apos;) {
+	                        if (last_text === &apos;get&apos; || last_text === &apos;set&apos; || last_text === &apos;new&apos; || last_text === &apos;return&apos;) {
+	                            print_single_space();
+	                        } else {
+	                            print_newline();
+	                        }
+	                    } else if (last_type === &apos;TK_OPERATOR&apos; || last_text === &apos;=&apos;) {
+	                        // foo = function
+	                        print_single_space();
+	                    } else if (is_expression(flags.mode)) {
+	                        // print nothing
+	                    } else {
+	                        print_newline();
+	                    }
+	
+	                    print_token();
+	                    last_word = token_text;
+	                    break;
+	                }
+	
+	                if (token_text === &apos;case&apos; || (token_text === &apos;default&apos; &amp;&amp; flags.in_case_statement)) {
+	                    print_newline();
+	                    if (flags.case_body) {
+	                        // switch cases following one another
+	                        flags.indentation_level--;
+	                        flags.case_body = false;
+	                        remove_indent();
+	                    }
+	                    print_token();
+	                    flags.in_case = true;
+	                    flags.in_case_statement = true;
+	                    break;
+	                }
+	
+	                if (last_type === &apos;TK_END_BLOCK&apos;) {
+	
+	                    if (!in_array(token_text.toLowerCase(), [&apos;else&apos;, &apos;catch&apos;, &apos;finally&apos;])) {
+	                        prefix = &apos;NEWLINE&apos;;
+	                    } else {
+	                        if (opt_brace_style === &quot;expand&quot; || opt_brace_style === &quot;end-expand&quot; || opt_brace_style === &quot;expand-strict&quot;) {
+	                            prefix = &apos;NEWLINE&apos;;
+	                        } else {
+	                            prefix = &apos;SPACE&apos;;
+	                            print_single_space();
+	                        }
+	                    }
+	                } else if (last_type === &apos;TK_SEMICOLON&apos; &amp;&amp; (flags.mode === &apos;BLOCK&apos; || flags.mode === &apos;DO_BLOCK&apos;)) {
+	                    prefix = &apos;NEWLINE&apos;;
+	                } else if (last_type === &apos;TK_SEMICOLON&apos; &amp;&amp; is_expression(flags.mode)) {
+	                    prefix = &apos;SPACE&apos;;
+	                } else if (last_type === &apos;TK_STRING&apos;) {
+	                    prefix = &apos;NEWLINE&apos;;
+	                } else if (last_type === &apos;TK_WORD&apos;) {
+	                    if (last_text === &apos;else&apos;) {
+	                        // eat newlines between ...else *** some_op...
+	                        // won&apos;t preserve extra newlines in this place (if any), but don&apos;t care that much
+	                        trim_output(true);
+	                    }
+	                    prefix = &apos;SPACE&apos;;
+	                } else if (last_type === &apos;TK_START_BLOCK&apos;) {
+	                    prefix = &apos;NEWLINE&apos;;
+	                } else if (last_type === &apos;TK_END_EXPR&apos;) {
+	                    print_single_space();
+	                    prefix = &apos;NEWLINE&apos;;
+	                }
+	
+	                if (in_array(token_text, line_starters) &amp;&amp; last_text !== &apos;)&apos;) {
+	                    if (last_text === &apos;else&apos;) {
+	                        prefix = &apos;SPACE&apos;;
+	                    } else {
+	                        prefix = &apos;NEWLINE&apos;;
+	                    }
+	
+	                }
+	
+	                if (flags.if_line &amp;&amp; last_type === &apos;TK_END_EXPR&apos;) {
+	                    flags.if_line = false;
+	                }
+	                if (in_array(token_text.toLowerCase(), [&apos;else&apos;, &apos;catch&apos;, &apos;finally&apos;])) {
+	                    if (last_type !== &apos;TK_END_BLOCK&apos; || opt_brace_style === &quot;expand&quot; || opt_brace_style === &quot;end-expand&quot; || opt_brace_style === &quot;expand-strict&quot;) {
+	                        print_newline();
+	                    } else {
+	                        trim_output(true);
+	                        print_single_space();
+	                    }
+	                } else if (prefix === &apos;NEWLINE&apos;) {
+	                    if (is_special_word(last_text)) {
+	                        // no newline between &apos;return nnn&apos;
+	                        print_single_space();
+	                    } else if (last_type !== &apos;TK_END_EXPR&apos;) {
+	                        if ((last_type !== &apos;TK_START_EXPR&apos; || token_text !== &apos;var&apos;) &amp;&amp; last_text !== &apos;:&apos;) {
+	                            // no need to force newline on &apos;var&apos;: for (var x = 0...)
+	                            if (token_text === &apos;if&apos; &amp;&amp; last_word === &apos;else&apos; &amp;&amp; last_text !== &apos;{&apos;) {
+	                                // no newline for } else if {
+	                                print_single_space();
+	                            } else {
+	                                flags.var_line = false;
+	                                flags.var_line_reindented = false;
+	                                print_newline();
+	                            }
+	                        }
+	                    } else if (in_array(token_text, line_starters) &amp;&amp; last_text !== &apos;)&apos;) {
+	                        flags.var_line = false;
+	                        flags.var_line_reindented = false;
+	                        print_newline();
+	                    }
+	                } else if (is_array(flags.mode) &amp;&amp; last_text === &apos;,&apos; &amp;&amp; last_last_text === &apos;}&apos;) {
+	                    print_newline(); // }, in lists get a newline treatment
+	                } else if (prefix === &apos;SPACE&apos;) {
+	                    print_single_space();
+	                }
+	                print_token();
+	                last_word = token_text;
+	
+	                if (token_text === &apos;var&apos;) {
+	                    flags.var_line = true;
+	                    flags.var_line_reindented = false;
+	                    flags.var_line_tainted = false;
+	                }
+	
+	                if (token_text === &apos;if&apos;) {
+	                    flags.if_line = true;
+	                }
+	                if (token_text === &apos;else&apos;) {
+	                    flags.if_line = false;
+	                }
+	
+	                break;
+	
+	            case &apos;TK_SEMICOLON&apos;:
+	
+	                print_token();
+	                flags.var_line = false;
+	                flags.var_line_reindented = false;
+	                if (flags.mode === &apos;OBJECT&apos;) {
+	                    // OBJECT mode is weird and doesn&apos;t get reset too well.
+	                    flags.mode = &apos;BLOCK&apos;;
+	                }
+	                break;
+	
+	            case &apos;TK_STRING&apos;:
+	
+	                if (last_type === &apos;TK_END_EXPR&apos; &amp;&amp; in_array(flags.previous_mode, [&apos;(COND-EXPRESSION)&apos;, &apos;(FOR-EXPRESSION)&apos;])) {
+	                    print_single_space();
+	                } else if (last_type === &apos;TK_WORD&apos;) {
+	                    print_single_space();
+	                } else if (last_type === &apos;TK_COMMA&apos; || last_type === &apos;TK_START_EXPR&apos; || last_type === &apos;TK_EQUALS&apos; || last_type === &apos;TK_OPERATOR&apos;) {
+	                    if (opt_preserve_newlines &amp;&amp; wanted_newline &amp;&amp; flags.mode !== &apos;OBJECT&apos;) {
+	                        print_newline();
+	                        output.push(indent_string);
+	                    }
+	                } else {
+	                    print_newline();
+	                }
+	                print_token();
+	                break;
+	
+	            case &apos;TK_EQUALS&apos;:
+	                if (flags.var_line) {
+	                    // just got an &apos;=&apos; in a var-line, different formatting/line-breaking, etc will now be done
+	                    flags.var_line_tainted = true;
+	                }
+	                print_single_space();
+	                print_token();
+	                print_single_space();
+	                break;
+	
+	            case &apos;TK_COMMA&apos;:
+	                if (flags.var_line) {
+	                    if (is_expression(flags.mode) || last_type === &apos;TK_END_BLOCK&apos; ) {
+	                        // do not break on comma, for(var a = 1, b = 2)
+	                        flags.var_line_tainted = false;
+	                    }
+	                    if (flags.var_line_tainted) {
+	                        print_token();
+	                        flags.var_line_reindented = true;
+	                        flags.var_line_tainted = false;
+	                        print_newline();
+	                        break;
+	                    } else {
+	                        flags.var_line_tainted = false;
+	                    }
+	
+	                    print_token();
+	                    print_single_space();
+	                    break;
+	                }
+	
+	                if (last_type === &apos;TK_COMMENT&apos;) {
+	                    print_newline();
+	                }
+	
+	                if (last_type === &apos;TK_END_BLOCK&apos; &amp;&amp; flags.mode !== &quot;(EXPRESSION)&quot;) {
+	                    print_token();
+	                    if (flags.mode === &apos;OBJECT&apos; &amp;&amp; last_text === &apos;}&apos;) {
+	                        print_newline();
+	                    } else {
+	                        print_single_space();
+	                    }
+	                } else {
+	                    if (flags.mode === &apos;OBJECT&apos;) {
+	                        print_token();
+	                        print_newline();
+	                    } else {
+	                        // EXPR or DO_BLOCK
+	                        print_token();
+	                        print_single_space();
+	                    }
+	                }
+	                break;
+	
+	
+	            case &apos;TK_OPERATOR&apos;:
+	
+	                var space_before = true;
+	                var space_after = true;
+	                if (is_special_word(last_text)) {
+	                    // &quot;return&quot; had a special handling in TK_WORD. Now we need to return the favor
+	                    print_single_space();
+	                    print_token();
+	                    break;
+	                }
+	
+	                // hack for actionscript&apos;s import .*;
+	                if (token_text === &apos;*&apos; &amp;&amp; last_type === &apos;TK_DOT&apos; &amp;&amp; !last_last_text.match(/^\d+$/)) {
+	                    print_token();
+	                    break;
+	                }
+	
+	                if (token_text === &apos;:&apos; &amp;&amp; flags.in_case) {
+	                    flags.case_body = true;
+	                    indent();
+	                    print_token();
+	                    print_newline();
+	                    flags.in_case = false;
+	                    break;
+	                }
+	
+	                if (token_text === &apos;::&apos;) {
+	                    // no spaces around exotic namespacing syntax operator
+	                    print_token();
+	                    break;
+	                }
+	
+	                if (in_array(token_text, [&apos;--&apos;, &apos;++&apos;, &apos;!&apos;]) || (in_array(token_text, [&apos;-&apos;, &apos;+&apos;]) &amp;&amp; (in_array(last_type, [&apos;TK_START_BLOCK&apos;, &apos;TK_START_EXPR&apos;, &apos;TK_EQUALS&apos;, &apos;TK_OPERATOR&apos;]) || in_array(last_text, line_starters) || last_text == &apos;,&apos;))) {
+	                    // unary operators (and binary +/- pretending to be unary) special cases
+	
+	                    space_before = false;
+	                    space_after = false;
+	
+	                    if (last_text === &apos;;&apos; &amp;&amp; is_expression(flags.mode)) {
+	                        // for (;; ++i)
+	                        //        ^^^
+	                        space_before = true;
+	                    }
+	                    if (last_type === &apos;TK_WORD&apos; &amp;&amp; in_array(last_text, line_starters)) {
+	                        space_before = true;
+	                    }
+	
+	                    if (flags.mode === &apos;BLOCK&apos; &amp;&amp; (last_text === &apos;{&apos; || last_text === &apos;;&apos;)) {
+	                        // { foo; --i }
+	                        // foo(); --bar;
+	                        print_newline();
+	                    }
+	                } else if (token_text === &apos;:&apos;) {
+	                    if (flags.ternary_depth === 0) {
+	                        if (flags.mode === &apos;BLOCK&apos;) {
+	                            flags.mode = &apos;OBJECT&apos;;
+	                        }
+	                        space_before = false;
+	                    } else {
+	                        flags.ternary_depth -= 1;
+	                    }
+	                } else if (token_text === &apos;?&apos;) {
+	                    flags.ternary_depth += 1;
+	                }
+	                if (space_before) {
+	                    print_single_space();
+	                }
+	
+	                print_token();
+	
+	                if (space_after) {
+	                    print_single_space();
+	                }
+	
+	                break;
+	
+	            case &apos;TK_BLOCK_COMMENT&apos;:
+	
+	                var lines = split_newlines(token_text);
+	                var j; // iterator for this case
+	
+	                if (all_lines_start_with(lines.slice(1), &apos;*&apos;)) {
+	                    // javadoc: reformat and reindent
+	                    print_newline();
+	                    output.push(lines[0]);
+	                    for (j = 1; j &lt; lines.length; j++) {
+	                        print_newline();
+	                        output.push(&apos; &apos;);
+	                        output.push(trim(lines[j]));
+	                    }
+	
+	                } else {
+	
+	                    // simple block comment: leave intact
+	                    if (lines.length &gt; 1) {
+	                        // multiline comment block starts with a new line
+	                        print_newline();
+	                    } else {
+	                        // single-line /* comment */ stays where it is
+	                        if (last_type === &apos;TK_END_BLOCK&apos;) {
+	                            print_newline();
+	                        } else {
+	                            print_single_space();
+	                        }
+	
+	                    }
+	
+	                    for (j = 0; j &lt; lines.length; j++) {
+	                        output.push(lines[j]);
+	                        output.push(&quot;\n&quot;);
+	                    }
+	
+	                }
+	                if (look_up(&apos;\n&apos;) !== &apos;\n&apos;) {
+	                    print_newline();
+	                }
+	                break;
+	
+	            case &apos;TK_INLINE_COMMENT&apos;:
+	                print_single_space();
+	                print_token();
+	                if (is_expression(flags.mode)) {
+	                    print_single_space();
+	                } else {
+	                    force_newline();
+	                }
+	                break;
+	
+	            case &apos;TK_COMMENT&apos;:
+	
+	                if (last_text === &apos;,&apos; &amp;&amp; !wanted_newline) {
+	                    trim_output(true);
+	                }
+	                if (last_type !== &apos;TK_COMMENT&apos;) {
+	                    if (wanted_newline) {
+	                        print_newline();
+	                    } else {
+	                        print_single_space();
+	                    }
+	                }
+	                print_token();
+	                print_newline();
+	                break;
+	
+	            case &apos;TK_UNKNOWN&apos;:
+	                print_token();
+	                break;
+	        }
+	
+	        last_last_text = last_text;
+	        last_type = token_type;
+	        last_text = token_text;
+	    }
+	
+	    var sweet_code = preindent_string + output.join(&apos;&apos;).replace(/[\r\n ]+$/, &apos;&apos;);
+	    return sweet_code;
+	
+	}
+
+	return sourceCode;
+}</code>
+  </properties>
+</codeTemplate>
